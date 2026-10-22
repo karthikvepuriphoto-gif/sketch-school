@@ -103,6 +103,23 @@ function starCount() { return Object.values(st.stars).reduce((a, b) => a + b, 0)
 function bar(title, back = true) { $('#ttl').textContent = title; $('#back').style.visibility = back ? 'visible' : 'hidden'; $('#stars').textContent = '⭐ ' + starCount(); }
 $('#back').onclick = () => { if (history.length > 1) history.back(); else location.hash = '#/'; };
 
+// full screen: Fullscreen API, webkit fallback, then a CSS full-viewport mode (iPhone Safari)
+let fsEl = null;
+function toggleFS(el) {
+  if (fsEl) return exitFS();
+  fsEl = el; el.classList.add('fsel'); document.body.classList.add('fsmode');
+  const rq = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (rq) { try { const r = rq.call(el); if (r && r.catch) r.catch(() => { }); } catch (e) { } }
+  window.scrollTo(0, 0);
+}
+function exitFS() {
+  if (!fsEl) return; const el = fsEl; fsEl = null; el.classList.remove('fsel'); document.body.classList.remove('fsmode');
+  const fe = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fe) { const ex = document.exitFullscreen || document.webkitExitFullscreen; try { const r = ex.call(document); if (r && r.catch) r.catch(() => { }); } catch (e) { } }
+}
+const onFsChange = () => { if (fsEl && !(document.fullscreenElement || document.webkitFullscreenElement) && fsEl._native) exitFS(); if (fsEl && (document.fullscreenElement || document.webkitFullscreenElement)) fsEl._native = true; };
+document.addEventListener('fullscreenchange', onFsChange); document.addEventListener('webkitfullscreenchange', onFsChange);
+
 // ---------------- screens ----------------
 let stopPlayer = () => { }, stopVideo = () => { };
 function route() {
@@ -160,64 +177,79 @@ function lesson(id) {
     <div class="side">${(st.demoDone = st.demoDone || {}, st.demoDone[l.id] = 1, save(), '')}${l.build().map((s, i) => `<div class="card"><div class="stepno">Step ${i + 1}</div><h3>${s.title}</h3><p>${s.say}</p></div>`).join('')}<a class="btn pri" href="#/do/${l.id}">✏️ My turn on paper</a></div></div>`);
     return;
   }
-  h(`<div class="player"><div><div class="boardwrap" id="board"><canvas id="pc" width="${W}" height="${H}"></canvas><canvas id="dc" width="${W}" height="${H}"></canvas><div class="labels" id="labs"></div><div class="sov" id="sov"><div class="sovin"><div class="stepno" id="sovn"></div><div id="sovc" class="sovc"></div><button class="btn pri big" id="sgo">Tap when you've drawn this step ▶</button><button class="btn sm" id="srep">↺ Replay this step</button></div></div>
-     <svg class="pencil" id="pen" viewBox="0 0 44 44"><g transform="rotate(45 22 22)"><rect x="18" y="-6" width="8" height="34" rx="1.5" fill="#fbbf24"/><rect x="18" y="-6" width="8" height="5" fill="#f472b6"/><polygon points="18,28 26,28 22,38" fill="#f1d3a1"/><polygon points="20.6,34.5 23.4,34.5 22,38" fill="#333"/></g></svg></div>
-     <div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between"><div><span class="grade" id="gd">HB</span><span class="gname" id="gw">Light</span></div><small class="mute" id="gs"></small></div><div class="gauge"><i id="gi" style="left:0"></i></div><div class="row mute" style="justify-content:space-between;font-size:12px"><span>Barely touch</span><span>Medium</span><span>Heavy</span></div></div></div>
+  h(`<div class="player" id="stage"><div><div class="boardwrap" id="board"><canvas id="pc" width="${W}" height="${H}"></canvas><canvas id="dc" width="${W}" height="${H}"></canvas><div class="labels" id="labs"></div>
+     <svg class="pencil" id="pen" viewBox="0 0 44 44"><g transform="rotate(45 22 22)"><rect x="18" y="-6" width="8" height="34" rx="1.5" fill="#fbbf24"/><rect x="18" y="-6" width="8" height="5" fill="#f472b6"/><polygon points="18,28 26,28 22,38" fill="#f1d3a1"/><polygon points="20.6,34.5 23.4,34.5 22,38" fill="#333"/></g></svg>
+     <button class="fsb" id="fs" aria-label="Full screen">⛶</button>
+     <div class="nbar"><span class="nmsg" id="nmsg"></span><button class="btn sm" id="rep">↺ Replay</button><button class="btn sm pri" id="nxt">Next step ▶</button></div></div>
+     <div class="card gcard" style="margin-top:12px"><div class="row" style="justify-content:space-between"><div><span class="grade" id="gd">HB</span><span class="gname" id="gw">Light</span></div><small class="mute" id="gs"></small></div><div class="gauge"><i id="gi" style="left:0"></i></div><div class="row mute" style="justify-content:space-between;font-size:12px"><span>Barely touch</span><span>Medium</span><span>Heavy</span></div></div></div>
    <div class="side"><div class="card"><div class="stepno" id="sn"></div><h3 id="st"></h3><p id="ss"></p>${l.credit ? `<p class="mute" style="font-size:13px">🎨 ${esc(l.credit)}</p>` : ''}<button class="btn sm" id="say">🔊 Read to me</button></div>
-     <div class="card"><div class="ctrls"><button class="btn" id="bprev" aria-label="Previous step">⏮</button><button class="btn pri" id="bplay" aria-label="Play">▶</button><button class="btn" id="bstep" aria-label="Next step">⏭</button></div>
-     <div class="seg" id="spd" style="margin-top:10px">${[.5, 1, 2, 4].map(s => `<button data-s="${s}" class="${s === 1 ? 'on' : ''}">${s}×</button>`).join('')}</div>
+     <div class="card"><div class="ctrls"><button class="btn" id="bprev" aria-label="Previous step">⏮</button><button class="btn pri" id="bplay" aria-label="Play">▶</button><button class="btn" id="bstep" aria-label="Skip to end of step">⏭</button></div>
+     <div class="seg" id="spd" style="margin-top:10px">${[.25, .5, 1, 2, 4].map(s => `<button data-s="${s}" class="${s === 1 ? 'on' : ''}">${s}×</button>`).join('')}</div>
+     <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="loop" ${st.loop !== false ? 'checked' : ''} style="width:22px;height:22px;accent-color:var(--acc)"> 🔁 Loop each step until I tap Next</label>
      <div class="dots" id="dots" style="margin-top:12px">${steps.map((_, i) => `<span data-i="${i}"></span>`).join('')}</div></div>
      <a class="btn pri" href="#/do/${l.id}" style="text-align:center;text-decoration:none">✏️ My turn on paper</a></div></div>
    <h2>Before &amp; after</h2><div class="ba"><figure><img alt="Before" src="${renderSteps(steps, 1, 600).toDataURL('image/jpeg', .85)}"><figcaption>Outline only</figcaption></figure><figure><img alt="After" src="${thumb(l, 600)}"><figcaption>With shading</figcaption></figure></div>`);
   const dc = $('#dc'), ctx = dc.getContext('2d'), pc = $('#pc'), pen = $('#pen'); paper(pc);
-  let step = 0, si = 0, pi = 0, playing = false, speed = 1, raf = 0, last = 0, rate = 400, carry = 0, pauseUntil = 0;
+  const snap = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(dc, 0, 0); return c; };
+  let step = 0, si = 0, pi = 0, playing = false, speed = 1, raf = 0, last = 0, rate = 100, carry = 0, lift = 0;
+  let phase = 'draw', phaseT = 0, base = snap(), full = null, finished = false;
   const totalPts = (s) => s.strokes.reduce((a, b) => a + b.p.length, 0);
   function showStep() {
     const s = steps[step]; $('#sn').textContent = `Step ${step + 1} of ${steps.length}`; $('#st').textContent = s.title; $('#ss').textContent = s.say;
     $('#labs').innerHTML = (s.labels || []).map(b => `<div class="lab" style="left:${b.x / 10}%;top:${b.y / 7.5}%">${esc(b.t)}</div>`).join('');
     document.querySelectorAll('#dots span').forEach((d, i) => d.className = i === step ? 'on' : i < step ? 'past' : '');
-    rate = Math.max(120, totalPts(s) / Math.min(14, Math.max(4, totalPts(s) / 250)));
+    const tp = totalPts(s); rate = tp / Math.min(40, Math.max(10, tp / 90)); // hand pace: 10 to 40 s per step at 1x
     const g = s.strokes.find(x => x.t === 'pencil'); if (g) $('#gd').textContent = g.g;
+    $('#nxt').textContent = step >= steps.length - 1 ? '✏️ My turn on paper' : 'Next step ▶'; $('#nxt').classList.remove('ready'); $('#nmsg').textContent = '';
   }
-  function redrawTo(n) { $('#sov').classList.remove('on'); ctx.clearRect(0, 0, W, H); for (let i = 0; i < n; i++) for (const s of steps[i].strokes) drawStroke(ctx, s); step = n; si = 0; pi = 0; showStep(); }
+  function startStep(n) { step = n; si = 0; pi = 0; phase = 'draw'; base = snap(); full = null; showStep(); }
+  function redrawTo(n) { ctx.clearRect(0, 0, W, H); for (let i = 0; i < n; i++) for (const s of steps[i].strokes) drawStroke(ctx, s); startStep(n); }
   function setGauge(s, p) {
     $('#gi').style.left = `calc(${p * 100}% - 3px)`; const [w, sub] = pressWord(p);
     if (s.t === 'pencil') { $('#gd').textContent = s.g; $('#gw').textContent = w; $('#gs').textContent = sub; }
     else { $('#gd').textContent = s.t === 'smudge' ? 'Stump' : 'Eraser'; $('#gw').textContent = s.t === 'smudge' ? 'Blend in small circles' : 'Dab to lift graphite'; $('#gs').textContent = ''; }
   }
+  const setPlay = (p) => { playing = p; pen.style.opacity = p && phase === 'draw' ? 1 : 0; $('#bplay').textContent = p ? '⏸' : '▶'; };
+  function stepDone() {
+    full = snap(); phase = 'hold'; phaseT = 0; pen.style.opacity = 0;
+    if (step >= steps.length - 1 && !finished) { finished = true; st.demoDone = st.demoDone || {}; st.demoDone[l.id] = 1; save(); }
+    $('#nxt').classList.add('ready'); $('#nmsg').textContent = 'Your turn! Draw this step on paper.';
+  }
+  function finishNow() { const s = steps[step]; for (let i = si; i < s.strokes.length; i++) drawRange(ctx, s.strokes[i], i === si ? pi : 0, s.strokes[i].p.length); si = s.strokes.length; pi = 0; }
   function tick(t) {
-    raf = requestAnimationFrame(tick); const dt = Math.min(50, t - (last || t)); last = t; if (!playing || t < pauseUntil) return;
-    const s = steps[step]; if (!s.strokes.length) return nextStep();
+    raf = requestAnimationFrame(tick); const dt = Math.min(50, t - (last || t)); last = t; if (!playing) return;
+    const s = steps[step];
+    if (phase === 'hold') { if (st.loop === false) return; phaseT += dt; if (phaseT > 3000) { phase = 'fade'; phaseT = 0; } return; }
+    if (phase === 'fade') { phaseT += dt; const k = Math.min(1, phaseT / 700); ctx.clearRect(0, 0, W, H); ctx.drawImage(base, 0, 0); ctx.globalAlpha = 1 - k; ctx.drawImage(full, 0, 0); ctx.globalAlpha = 1; if (k >= 1) { phase = 'draw'; si = 0; pi = 0; pen.style.opacity = 1; } return; }
+    if (!s.strokes.length) return stepDone();
+    if (lift > 0) { lift -= dt * speed; return; }
     carry += rate * speed * dt / 1000; let budget = Math.floor(carry); carry -= budget;
     while (budget > 0 && si < s.strokes.length) {
       const k = s.strokes[si], end = Math.min(k.p.length, pi + budget);
-      drawRange(ctx, k, pi, end); budget -= (end - pi); const q = k.p[end - 1]; pen.style.left = q[0] / 10 + '%'; pen.style.top = q[1] / 7.5 + '%'; setGauge(k, q[2]);
-      pi = end; if (pi >= k.p.length) { si++; pi = 0; }
+      drawRange(ctx, k, pi, end); budget -= (end - pi); const q = k.p[end - 1]; pen.style.left = q[0] / 10 + '%'; pen.style.top = q[1] / 7.5 + '%'; pen.style.opacity = 1; setGauge(k, q[2]);
+      pi = end; if (pi >= k.p.length) { si++; pi = 0; if (s.strokes.length < 40) { lift = 220; break; } }
     }
-    if (si >= s.strokes.length) nextStep();
+    if (si >= s.strokes.length) stepDone();
   }
-  const ENC = ['Take your time. There is no rush.', 'It is OK if yours looks a little different. That is your style!', 'Nice and slow is how artists draw.', 'Light lines first. You can always go darker.', 'Look at the demo, then look at your paper.'];
-  function nextStep() {
-    playing = false; pen.style.opacity = 0; $('#bplay').textContent = '▶';
-    const last = step >= steps.length - 1; if (last) { finished = true; st.demoDone = st.demoDone || {}; st.demoDone[l.id] = 1; save(); }
-    $('#sovn').textContent = last ? '🎉 All steps done!' : `Step ${step + 1} of ${steps.length} · your turn`;
-    $('#sovc').innerHTML = `<b>${esc(steps[step].title)}</b><br><span class="mute">${last ? 'Awesome work! Snap a photo of your drawing for your Journal.' : esc(ENC[step % ENC.length])}</span>`;
-    $('#sgo').textContent = last ? '📸 Finish & add to my Journal' : "Tap when you've drawn this step ▶";
-    $('#sov').classList.add('on');
+  function next() {
+    if (phase !== 'hold' && phase !== 'fade') finishNow();
+    if (step >= steps.length - 1) { if (!finished) { finished = true; st.demoDone = st.demoDone || {}; st.demoDone[l.id] = 1; save(); } location.hash = '#/do/' + l.id; return; }
+    if (full || phase === 'fade') { ctx.clearRect(0, 0, W, H); ctx.drawImage(full || snap(), 0, 0); }
+    startStep(step + 1); setPlay(true);
   }
-  function cont() { $('#sov').classList.remove('on'); if (finished) { location.hash = '#/do/' + l.id; return; } step++; si = 0; pi = 0; showStep(); playing = true; pen.style.opacity = 1; $('#bplay').textContent = '⏸'; }
-  $('#sov').onclick = (e) => { if (e.target.id === 'srep') return; cont(); };
-  $('#srep').onclick = () => { $('#sov').classList.remove('on'); finished = false; redrawTo(step); playing = true; pen.style.opacity = 1; $('#bplay').textContent = '⏸'; };
-  let finished = false;
-  $('#bplay').onclick = () => { if ($('#sov').classList.contains('on')) return cont(); if (finished) { finished = false; redrawTo(0); } playing = !playing; pen.style.opacity = playing ? 1 : .5; $('#bplay').textContent = playing ? '⏸' : '▶'; };
-  $('#bstep').onclick = () => { if ($('#sov').classList.contains('on')) return cont(); const s = steps[step]; for (let i = si; i < s.strokes.length; i++) drawRange(ctx, s.strokes[i], i === si ? pi : 0, s.strokes[i].p.length); si = s.strokes.length; nextStep(); };
-  $('#bprev').onclick = () => { finished = false; redrawTo(Math.max(0, step - (si === 0 && pi === 0 ? 1 : 0))); };
-  $('#dots').onclick = (e) => { const i = e.target.dataset.i; if (i != null) { finished = false; redrawTo(+i); } };
+  $('#nxt').onclick = next;
+  $('#rep').onclick = () => { ctx.clearRect(0, 0, W, H); ctx.drawImage(base, 0, 0); si = 0; pi = 0; phase = 'draw'; full = null; showStep(); setPlay(true); };
+  $('#bplay').onclick = () => setPlay(!playing);
+  $('#bstep').onclick = () => { if (phase === 'draw') { finishNow(); stepDone(); } };
+  $('#bprev').onclick = () => redrawTo(Math.max(0, step - 1));
+  $('#dots').onclick = (e) => { const i = e.target.dataset.i; if (i != null) redrawTo(+i); };
   $('#spd').onclick = (e) => { if (!e.target.dataset.s) return; speed = +e.target.dataset.s; document.querySelectorAll('#spd button').forEach(b => b.classList.toggle('on', b === e.target)); };
+  $('#loop').onchange = (e) => { st.loop = e.target.checked; save(); };
   $('#say').onclick = () => speak(steps[step].title + '. ' + steps[step].say);
+  $('#fs').onclick = () => toggleFS($('#stage'));
   showStep(); raf = requestAnimationFrame(tick);
-  window.__player = { get step() { return step; }, get playing() { return playing; }, get finished() { return finished; } };
-  stopPlayer = () => cancelAnimationFrame(raf);
+  window.__player = { get step() { return step; }, get playing() { return playing; }, get finished() { return finished; }, get phase() { return phase; } };
+  stopPlayer = () => { cancelAnimationFrame(raf); exitFS(); };
 }
 
 function doIt(id) {
@@ -337,39 +369,44 @@ function watch(i) {
   const v = vids()[+i]; if (!v) return videos();
   bar(v.title);
   const caps = [...(v.steps || []).map(s => s.cap), 'Last step: finish your drawing'];
-  h(`<div class="vwrap"><div id="vbox"></div>
-     <div class="sov" id="sov" style="background:#14161fb8"><div class="sovin"><div class="stepno" id="sovn"></div><div class="sovc" id="sovc"></div><button class="btn pri big" id="sgo">Tap when you've drawn this step ▶</button><button class="btn sm" id="srep">↺ Replay this step</button></div></div>
+  h(`<div id="vstage"><div class="vwrap"><div id="vbox"></div>
+     <div class="vcapov" id="vcapov"></div><button class="fsb" id="fs" aria-label="Full screen">⛶</button>
+     <div class="nbar" id="vnb"><span class="nmsg" id="nmsg"></span><button class="btn sm" id="srep">↺ Replay</button><button class="btn sm pri" id="sgo">Next step ▶</button></div>
      <div class="vend" id="vend"><div><div style="font-size:54px">🎉</div><h2>You drew the whole thing!</h2><p class="mute">Snap a photo of your paper for your Journal.</p><div class="row" style="justify-content:center"><label class="btn pri">📸 Add to Journal<input id="vph" type="file" accept="image/*" capture="environment" hidden></label><button class="btn" id="again">↺ Watch again</button><a class="btn" href="#/videos">More videos</a></div></div></div></div>
    <div class="card" style="margin-top:10px"><div class="row" style="justify-content:space-between"><b id="vcap">Step 1</b><span id="vt" class="mute">0:00</span></div><div class="prog" id="prog"><div class="fill" id="pfill"></div></div>
-   <div class="row" style="margin-top:10px"><button class="btn pri" id="vp" style="flex:1">▶ Play</button><button class="btn" id="vr">↺ Replay step</button></div>
-   ${v.placeholder ? '<p class="mute" style="font-size:13px">Steps are evenly spaced placeholders (parent: adjust steps).</p>' : ''}</div>`);
+   <div class="row" style="margin-top:10px"><button class="btn pri" id="vp" style="flex:1">▶ Play</button><button class="btn" id="vr">↺ Replay step</button></div><label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="loop" ${st.loop !== false ? 'checked' : ''} style="width:22px;height:22px;accent-color:var(--acc)"> 🔁 Loop each step until I tap Next</label>
+   ${v.placeholder ? '<p class="mute" style="font-size:13px">Steps are evenly spaced placeholders (parent: adjust steps).</p>' : ''}</div></div>`);
   let step = 0, holding = false, ends = stepEnds(v, v.duration);
   const start = (k) => k ? ends[k - 1] : 0;
   const marks = () => { const d = P.dur || v.duration || 1; ends = stepEnds(v, d); $('#prog').innerHTML = `<div class="fill" id="pfill"></div>` + ends.slice(0, -1).map((e, k) => `<div class="mk ${k < step ? 'past' : ''}" data-k="${k + 1}" style="left:${e / d * 100}%"></div>`).join(''); };
   const showCap = () => { $('#vcap').textContent = `Step ${step + 1} of ${ends.length}: ${caps[step] || ''}`; };
   const P = makePlayer($('#vbox'), v, {
     ready: () => { marks(); showCap(); },
-    state: (pl) => { $('#vp').textContent = pl ? '⏸ Pause' : '▶ Play'; if (pl) { $('#sov').classList.remove('on'); $('#vend').classList.remove('on'); } },
+    state: (pl) => { $('#vp').textContent = pl ? '⏸ Pause' : '▶ Play'; if (pl) $('#vend').classList.remove('on'); },
     ended: () => finish(),
   });
   window.__watch = { get step() { return step; }, get held() { return holding; }, P };
-  const hold = () => { holding = true; P.pause(); $('#sovn').textContent = `Step ${step + 1} of ${ends.length} · pause and draw`; $('#sovc').innerHTML = `<b>${esc(caps[step] || '')}</b><br><span class="mute">Take your time. It's OK if yours looks a little different!</span>`; $('#sov').classList.add('on'); speak(`Your turn. ${caps[step] || ''}`.replace(/\(parent: adjust steps\)/, '')); };
-  const finish = () => { P.pause(); holding = false; $('#sov').classList.remove('on'); $('#vend').classList.add('on'); st.watched[v.provider + v.id] = Date.now(); save(); checkBadges(); };
-  const cont = () => { holding = false; $('#sov').classList.remove('on'); step = Math.min(step + 1, ends.length - 1); marks(); showCap(); P.play(); };
-  const replay = () => { holding = false; $('#sov').classList.remove('on'); P.seek(start(step)); P.play(); };
-  $('#sov').onclick = (e) => { if (e.target.id !== 'srep') cont(); }; $('#srep').onclick = replay; $('#vr').onclick = replay;
-  $('#vp').onclick = $('#shield').onclick = () => { if (holding) return cont(); P.playing ? P.pause() : P.play(); };
+  let loopT = 0, spoke = -1;
+  const showHold = (on) => { $('#vstage').classList.toggle('held', on); $('#nmsg').textContent = on ? 'Your turn! Draw this step.' : ''; $('#vcapov').textContent = on ? `Step ${step + 1} of ${ends.length}: ${(caps[step] || '').replace(/\s*\(parent: adjust steps\)/, '')}` : ''; $('#sgo').textContent = step >= ends.length - 1 ? 'Finish ▶' : 'Next step ▶'; };
+  const hold = () => { holding = true; P.pause(); showHold(true); if (spoke !== step) { spoke = step; speak(`Your turn. ${caps[step] || ''}`.replace(/\(parent: adjust steps\)/, '')); } clearTimeout(loopT); if (st.loop !== false) loopT = setTimeout(() => { if (holding) { P.seek(start(step)); P.play(); } }, 3000); };
+  const finish = () => { clearTimeout(loopT); P.pause(); holding = false; showHold(false); $('#vend').classList.add('on'); st.watched[v.provider + v.id] = Date.now(); save(); checkBadges(); };
+  const cont = () => { clearTimeout(loopT); holding = false; showHold(false); if (step >= ends.length - 1) return finish(); step = step + 1; marks(); showCap(); P.seek(start(step)); P.play(); };
+  const replay = () => { clearTimeout(loopT); holding = false; showHold(false); P.seek(start(step)); P.play(); };
+  $('#sgo').onclick = cont; $('#srep').onclick = replay; $('#vr').onclick = replay;
+  $('#loop').onchange = (e) => { st.loop = e.target.checked; save(); if (!st.loop) clearTimeout(loopT); };
+  $('#fs').onclick = () => toggleFS($('#vstage'));
+  $('#vp').onclick = $('#shield').onclick = () => { if (holding) { clearTimeout(loopT); return P.playing ? P.pause() : P.play(); } P.playing ? P.pause() : P.play(); };
   $('#again').onclick = () => { step = 0; marks(); showCap(); $('#vend').classList.remove('on'); P.seek(0); P.play(); };
-  $('#prog').onclick = (e) => { const k = e.target.dataset.k; if (k == null) return; step = +k; marks(); showCap(); holding = false; $('#sov').classList.remove('on'); P.seek(start(step)); P.play(); };
+  $('#prog').onclick = (e) => { const k = e.target.dataset.k; if (k == null) return; step = +k; marks(); showCap(); clearTimeout(loopT); holding = false; showHold(false); P.seek(start(step)); P.play(); };
   $('#vph').onchange = (e) => addPhoto(e.target.files[0], 'video:' + v.id, () => toast('📔 Saved to your Journal!'));
   const iv = setInterval(async () => {
     if (!P.player) return; const t = await P.time(), d = P.dur || 1; $('#pfill').style.width = (t / d * 100) + '%'; $('#vt').textContent = fmt(t) + ' / ' + fmt(d);
-    if (!P.playing || holding) return;
-    while (step < ends.length - 1 && t < start(step)) step--; // after a backward jump
+    if (!P.playing) return;
+    if (!holding) while (step > 0 && t < start(step) - 1) step--; // after a backward jump
     if (step < ends.length - 1 && t >= ends[step] - .25) hold();
-    else if (step === ends.length - 1 && d > 1 && t >= d - 1.2) finish();
+    else if (step === ends.length - 1 && d > 1 && t >= d - 1.2) { if (!holding) { holding = true; showHold(true); P.pause(); } }
   }, 200);
-  stopVideo = () => { clearInterval(iv); P.destroy(); };
+  stopVideo = () => { clearInterval(iv); clearTimeout(loopT); exitFS(); P.destroy(); };
 }
 function addPhoto(f, id, done) {
   if (!f) return; const img = new Image();
@@ -387,7 +424,7 @@ function parent() {
      <h3 style="margin-top:16px">Add a video</h3><input type="url" id="vu" placeholder="YouTube or Vimeo link, or a video ID"><input type="text" id="vtl" placeholder="Title (optional, filled in automatically when possible)" style="margin-top:8px">
      <div class="row" style="margin-top:8px"><button class="btn pri" id="add">Add video</button><button class="btn" id="reset">Reset to starter picks</button></div><p id="msg" class="mute"></p></div>
    <div class="card" style="margin-top:12px"><h3>Backup: export / import</h3><p class="mute">Copy the video list and steps to another device.</p><div class="row"><button class="btn sm" id="exp">⬇ Export JSON</button><label class="btn sm">⬆ Import file<input type="file" id="impf" accept="application/json,.json" hidden></label><button class="btn sm" id="impt">Import pasted text</button></div><textarea id="json" placeholder="Exported JSON appears here, or paste JSON to import"></textarea></div>
-   <div class="card" style="margin-top:12px"><h3>Lessons</h3><p class="mute">Lessons unlock one at a time. Override here if needed.</p><div class="row"><button class="btn sm" id="unext">Unlock the next lesson</button><button class="btn sm" id="uall">${st.unlockAll ? 'Turn off "unlock all"' : 'Unlock all lessons'}</button><button class="btn sm" id="reob">Redo the welcome quiz</button></div></div>
+   <div class="card" style="margin-top:12px"><h3>Lessons</h3><p class="mute">Lessons unlock one at a time. Override here if needed.</p><div class="row"><button class="btn sm" id="unext">Unlock the next lesson</button><button class="btn sm" id="uall">${st.unlockAll ? 'Turn off "unlock all"' : 'Unlock all lessons'}</button><button class="btn sm" id="reob">Redo the welcome quiz</button></div><label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="ploop" ${st.loop !== false ? 'checked' : ''} style="width:22px;height:22px"> 🔁 Loop each step (demos and videos) until Next is tapped</label></div>
    <div class="card" style="margin-top:12px"><h3>Tips for a locked-down iPad</h3><p class="mute">Videos play inside the app with YouTube's buttons hidden, taps blocked, and our own screen at the end instead of YouTube's suggestions. For full lockdown, turn on <b>Guided Access</b> (Settings › Accessibility › Guided Access, then triple-click the side or top button) so Nivaan can't switch apps or open Safari tabs. Also consider Screen Time › Content &amp; Privacy to block the YouTube app.</p></div>
    <div class="row" style="margin-top:12px"><button class="btn" id="chg">Change PIN</button><button class="btn" id="lock">🔒 Lock</button></div>`);
   app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const l = [...vids()]; l.splice(+b.dataset.del, 1); st.videos = l; save(); parent(); });
@@ -395,6 +432,7 @@ function parent() {
   $('#lock').onclick = () => { unlocked = false; location.hash = '#/videos'; };
   $('#chg').onclick = () => { unlocked = false; pinPad(true); };
   $('#unext').onclick = () => { const n = LESSONS.find(l => !unlocked_(l)); if (!n) return toast('Everything is already unlocked'); st.unlocks = st.unlocks || {}; st.unlocks[n.id] = 1; save(); toast('Unlocked: ' + n.title); };
+  $('#ploop').onchange = (e) => { st.loop = e.target.checked; save(); };
   $('#uall').onclick = () => { st.unlockAll = !st.unlockAll; save(); parent(); };
   $('#reob').onclick = () => { st.onboarded = false; save(); location.hash = '#/welcome'; };
   $('#exp').onclick = () => { const txt = JSON.stringify({ app: 'sketch-school', version: 1, videos: vids() }, null, 1); $('#json').value = txt; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = 'sketch-school-videos.json'; a.click(); };

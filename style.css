@@ -74,3 +74,22 @@ textarea{width:100%;min-height:120px;background:#0f1118;color:#fff;border:1px so
 .q button.on{outline:3px solid var(--acc)}
 .vwrap .sov{z-index:7}.vwrap .vend{z-index:8}#vbox{position:absolute;inset:0}
 @media (max-width:600px){.vwrap .sovin{padding:8px 10px;gap:5px;margin:6px}.vwrap .sovc{font-size:14px}.vwrap .sovc span,.vwrap .stepno{display:none}.vwrap .btn.big{font-size:15px;padding:8px;min-height:38px}.vwrap .btn.sm{min-height:30px;padding:4px 10px}}
+/* small next/replay bar, full-screen */
+.nbar{position:absolute;right:10px;bottom:10px;z-index:7;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 20px)}
+.nbar .btn{box-shadow:0 4px 14px #0006}.nbar .btn:not(.pri){background:#1e2130e6}
+.nmsg{background:#14161fd9;color:#fff;font-weight:700;font-size:14px;padding:6px 12px;border-radius:99px}.nmsg:empty{display:none}
+#nxt.ready,.held #sgo{animation:pulse 1.6s infinite}
+#vnb{opacity:.85}.held #vnb{opacity:1}
+.vcapov{position:absolute;left:10px;top:10px;right:60px;z-index:7;color:#fff;font-weight:700;font-size:15px;text-shadow:0 1px 3px #000}.vcapov:empty{display:none}.held .vcapov{background:#14161fd9;padding:6px 12px;border-radius:12px;right:auto;max-width:calc(100% - 80px)}
+.fsb{position:absolute;right:10px;top:10px;z-index:8;width:40px;height:40px;border-radius:12px;border:0;background:#14161fbf;color:#fff;font-size:20px;cursor:pointer}
+body.fsmode #bar{display:none}
+.fsel{position:fixed!important;inset:0;z-index:100;background:var(--bg);margin:0;padding:calc(env(safe-area-inset-top) + 8px) 10px calc(env(safe-area-inset-bottom) + 8px);overflow:auto;width:100vw;height:100vh;height:100dvh;max-width:none}
+.player.fsel{display:grid;grid-template-columns:1fr minmax(240px,300px);gap:10px;align-items:start}
+.player.fsel .boardwrap{width:min(100%,calc((100dvh - 120px)*4/3));margin:0 auto}
+.player.fsel .gcard{margin-top:8px!important;padding:8px 12px}
+.player.fsel .side{max-height:calc(100dvh - 20px);overflow:auto}.player.fsel .side>a{display:none}
+#vstage.fsel{background:#000;display:flex;flex-direction:column;justify-content:center}
+#vstage.fsel .vwrap{width:min(100%,calc((100dvh - 170px)*16/9));margin:0 auto}
+#vstage.fsel .card{max-width:min(100%,calc((100dvh - 170px)*16/9));margin:8px auto 0!important;width:100%}
+@media (max-width:820px) and (orientation:portrait){.player.fsel{grid-template-columns:1fr}.player.fsel .boardwrap{width:100%}}
+@media (max-width:600px){.nbar .btn.sm{padding:6px 10px;min-height:34px;font-size:13px}.nmsg{font-size:12px}}
